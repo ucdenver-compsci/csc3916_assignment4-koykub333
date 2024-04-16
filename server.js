@@ -173,7 +173,7 @@ router.route('/movies')
 
 
 router.route('/movies/:id')
-    .get((req,res)=>{
+    .get(authJwtController.isAuthenticated,(req,res)=>{
         //Return movie based on id 
         console.log("GET MOVIE request received.");
         const { id } = req.params;
@@ -255,7 +255,7 @@ router.route('/movies/:id')
 /**********************************************************/
 
 router.route('/reviews')
-    .get((req,res)=>{
+    .get(authJwtController.isAuthenticated,(req,res)=>{
         //Return reviews based on query, if no query return all reviews
         console.log("GET MOVIE REVIEWS request received.");
         Reviews.find(req.query, function(err,movie){
