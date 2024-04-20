@@ -43,6 +43,31 @@ function getJSONObjectForMovieRequirement(req) {
     return json;
 }
 
+function includeReviewsWithMovie(movieId) {
+    const aggregate = [
+        {
+            $match: { _id: movieId }
+        },
+        {
+            $lookup: {
+                from: 'reviews',
+                localField: '_id',
+                foreignField: 'movieId',
+                as: 'movieReviews'
+            }
+        },
+        {
+            $addFields: {
+                avgRating: { $avg: '$movieReviews.rating' }
+            }
+        }
+    ];
+    var movie = Movie.aggregate(aggregate).exec(function(err, doc) { 
+        return doc;
+    })
+    return movie;
+}
+
 router.post('/signup', function(req, res) {
     if (!req.body.username || !req.body.password) {
         res.json({success: false, msg: 'Please include both username and password to signup.'})
@@ -95,9 +120,33 @@ router.route('/movies')
     .get(authJwtController.isAuthenticated,(req, res) => {
         // GET Movie based on query. If no query is specified, return all movies
         console.log("GET MOVIE request received.");
-        Movie.find(req.query, function(err,movie){
-            res.json(movie);
-        });
+        if(!req.query.reviews) {
+            Movie.find({ "_id": req.query._id }, function(err,movie){
+                res.json(movie);
+            });
+        } else {
+            const aggregate = [
+                {
+                    $match: { /** returns all movies */ }
+                },
+                {
+                    $lookup: {
+                        from: 'reviews',
+                        localField: '_id',
+                        foreignField: 'movieId',
+                        as: 'movieReviews'
+                    }
+                },
+                {
+                    $addFields: {
+                        avgRating: { $avg: '$movieReviews.rating' }
+                    }
+                }
+            ];
+            var movie = Movie.aggregate(aggregate).exec(function(err, doc) { 
+                res.json(doc);
+            })
+        }
 
     })
     .post(authJwtController.isAuthenticated,(req, res) => {
@@ -136,6 +185,7 @@ router.route('/movies')
                 releaseDate : req.body.releaseDate,
                 genre : req.body.genre,
                 actors : req.body.actors,
+                imageUrl : req.body.imageUrl
             };
             Movie.updateOne(req.query, movie, function(err){
                 if (err) {
@@ -180,32 +230,34 @@ router.route('/movies/:id')
         var dict = [];
 
         Movie.findOne( { _id : id } ).then(movie => {
-            //res.json(movie);
-            if(!movie){
-                console.log("Movie not found.");
-                res.status(400).json({success: false, msg: 'Movie not in DB'});
-                return;
-            }
-            dict.push({
-                key: 'movie',
-                value: movie
-            });
-            return dict;
-        }).then(result => {
             //if req.query.reviews==true, include reviews with movie in response
-            if (!result){
+            if (!movie){
                 return;
             } else if(req.query.reviews){          
-                Reviews.find( { movieId : id }).then(reviews => {
-                    dict.push({
-                        key: 'reviews',
-                        value: reviews
-                    });
-                }).then(result => {
-                    res.json(dict);
-                });;
+                const aggregate = [
+                    {
+                        $match: { _id: movie._id }
+                    },
+                    {
+                        $lookup: {
+                            from: 'reviews',
+                            localField: '_id',
+                            foreignField: 'movieId',
+                            as: 'movieReviews'
+                        }
+                    },
+                    {
+                        $addFields: {
+                            avgRating: { $avg: '$movieReviews.rating' }
+                        }
+                    }
+                ];
+                var movie = Movie.aggregate(aggregate).exec(function(err, doc) { 
+                    console.log(doc);
+                    res.json(doc[0]);
+                })
             } else {
-                res.json(dict);
+                res.json(movie);
             }   
         });
     })
